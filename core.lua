@@ -4,29 +4,11 @@ local Core = {}
 local HUB_VERSION = "v1.5"
 local CONFIG_FILE = "C4Hub_Config.json"
 
-local ALL_KEYS = {
-    "P", "RightShift", "LeftShift", "Insert", "Home", "End", "PageUp", "PageDown",
-    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-    "N", "O", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-    "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Zero",
-    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-    "LeftControl", "RightControl", "LeftAlt", "RightAlt", "Tab", "CapsLock",
-    "Up", "Down", "Left", "Right", "Slash", "Period", "Comma", "Semicolon",
-    "LeftBracket", "RightBracket", "Minus", "Equals", "Quote", "Backslash",
-    "Backspace", "Delete", "Escape", "Space", "Return", "Backquote",
-}
-
-local KEY_VALID_MAP = {}
-for _, k in ipairs(ALL_KEYS) do
-    KEY_VALID_MAP[k] = true
-end
-
 local DEFAULT_CONFIG = {
     Theme = "Violet",
     AutoReconnect = false,
     Language = "TH",
     Transparency = 0,
-    ToggleUIKey = "P",
 }
 
 local CONFIG_VALIDATORS = {
@@ -45,9 +27,6 @@ local CONFIG_VALIDATORS = {
         if v < 0 then v = 0 end
         if v > 80 then v = 80 end
         return v
-    end,
-    ToggleUIKey = function(v)
-        return type(v) == "string" and KEY_VALID_MAP[v] and v or nil
     end,
 }
 
@@ -73,9 +52,6 @@ local LANG = {
         appearance = "รูปลักษณ์",
         appearanceDesc = "ปรับความโปร่งใสของหน้าต่าง Hub",
         transparency = "ความโปร่งใส",
-        keybindSection = "ปุ่มลัด",
-        keybindDesc = "เลือกปุ่มบนคีย์บอร์ดเพื่อซ่อน/เปิด Hub",
-        toggleUIKey = "ปุ่มซ่อน/เปิด Hub",
         stats = "แสดงสถิติ",
         statsDesc = "โชว์กรอบ FPS/Ping มุมจอ",
         showStats = "แสดง FPS/Ping",
@@ -85,10 +61,8 @@ local LANG = {
         savedMsg = "บันทึกการตั้งค่าแล้ว",
         resetConfig = "รีเซ็ตการตั้งค่าทั้งหมด",
         resetMsg = "รีเซ็ตเรียบร้อยแล้ว เข้าเกมใหม่เพื่อให้มีผลเต็มที่",
-        togglehub = "ซ่อน/เปิด Hub",
+        closehub = "ปิด Hub",
         transparencyUnsupported = "WindUI เวอร์ชันนี้ยังไม่รองรับการปรับความโปร่งใส",
-        uiHidden = "Hub ถูกซ่อนแล้ว",
-        uiShown = "Hub แสดงแล้ว",
     },
     EN = {
         home = "Home",
@@ -111,9 +85,6 @@ local LANG = {
         appearance = "Appearance",
         appearanceDesc = "Adjust the Hub window transparency",
         transparency = "Transparency",
-        keybindSection = "Keybind",
-        keybindDesc = "Choose a key on your keyboard to toggle Hub visibility",
-        toggleUIKey = "Toggle UI key",
         stats = "Show Stats",
         statsDesc = "Show an FPS/Ping overlay on screen",
         showStats = "Show FPS/Ping",
@@ -123,10 +94,8 @@ local LANG = {
         savedMsg = "Settings saved",
         resetConfig = "Reset All Settings",
         resetMsg = "Reset done. Rejoin for full effect.",
-        togglehub = "Toggle Hub",
+        closehub = "Close Hub",
         transparencyUnsupported = "This WindUI version does not support transparency yet",
-        uiHidden = "Hub is now hidden",
-        uiShown = "Hub is now visible",
     },
 }
 
@@ -237,23 +206,74 @@ function Core.Init(mapName)
     end
     local Window = WindUI:CreateWindow(windowOptions)
     TryStyleTitleText(windowTitle)
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local HomeTab = Window:Tab({ Title = T.home, Icon = "house" })
+    local ProfileSection = HomeTab:Section({ Title = T.profileSection, Desc = mapName })
+    local content = Players:GetUserThumbnailAsync(
+        LocalPlayer.UserId,
+        Enum.ThumbnailType.HeadShot,
+        Enum.ThumbnailSize.Size420x420
+    )
+    ProfileSection:Image({
+        Image = content,
+        AspectRatio = "1:1",
+        Radius = 12,
+    })
+    ProfileSection:Space()
+    HomeTab:Paragraph({
+        Title = LocalPlayer.DisplayName,
+        Desc = "@" .. LocalPlayer.Name .. "  |  UserId: " .. LocalPlayer.UserId,
+    })
+    HomeTab:Button({
+        Title = T.version .. HUB_VERSION,
+        Icon = "star",
+        Callback = function()
+            WindUI:Notify({
+                Title = "C4rDev Hub",
+                Content = T.version .. HUB_VERSION,
+                Duration = 3,
+            })
+        end,
+    })
+    HomeTab:Button({
+        Title = T.discord,
+        Icon = "message-circle",
+        Callback = function()
+            local discordLink = "https://discord.gg/x5JFy9xzdb"
+            local copied = false
+            if setclipboard then
+                local ok = pcall(setclipboard, discordLink)
+                copied = ok
+            end
+            if copied then
+                WindUI:Notify({
+                    Title = T.discordCopied,
+                    Content = T.discordDesc,
+                    Duration = 3,
+                })
+            else
+                WindUI:Notify({
+                    Title = T.discord,
+                    Content = T.discordFallback .. discordLink,
+                    Duration = 6,
+                })
+            end
+        end,
+    })
 
-    Core._Window = Window
-    Core._isUIOpen = true
-
+    -- Toggle UI with P key
     local UserInputService = game:GetService("UserInputService")
     local toggleConn
     toggleConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.UserInputType == Enum.UserInputType.Keyboard then
-            local keyEnum = Enum.KeyCode[Core.Config.ToggleUIKey]
-            if keyEnum and input.KeyCode == keyEnum then
-                Core._isUIOpen = not Core._isUIOpen
+            if input.KeyCode == Enum.KeyCode.P then
                 pcall(function()
-                    if Core._isUIOpen then
-                        Window:Show()
-                    else
+                    if Window.Visible then
                         Window:Hide()
+                    else
+                        Window:Show()
                     end
                 end)
             end
@@ -335,26 +355,6 @@ function Core.Settings(Window, WindUI)
             end
         end,
     })
-
-    -- ============================================
-    -- KEYBIND SECTION - Dropdown (Stable)
-    -- ============================================
-    SettingsTab:Section({ Title = T.keybindSection, Desc = T.keybindDesc })
-    SettingsTab:Dropdown({
-        Title = T.toggleUIKey,
-        Values = ALL_KEYS,
-        Value = Core.Config.ToggleUIKey,
-        Callback = function(selected)
-            Core.Config.ToggleUIKey = selected
-            SaveConfigToFile(Core.Config)
-            WindUI:Notify({
-                Title = T.keybindSection,
-                Content = "Toggle key set to: " .. selected,
-                Duration = 2,
-            })
-        end,
-    })
-
     SettingsTab:Section({ Title = T.stats, Desc = T.statsDesc })
     local StatsGui = nil
     local StatsConnection = nil
@@ -454,19 +454,15 @@ function Core.Settings(Window, WindUI)
         end,
     })
     SettingsTab:Button({
-        Title = T.togglehub,
-        Icon = "eye",
+        Title = T.closehub,
+        Icon = "x",
         Callback = function()
-            Core._isUIOpen = not Core._isUIOpen
-            pcall(function()
-                if Core._isUIOpen then
-                    Window:Show()
-                    WindUI:Notify({ Title = "C4rDev Hub", Content = T.uiShown, Duration = 1.5 })
-                else
-                    Window:Hide()
-                    WindUI:Notify({ Title = "C4rDev Hub", Content = T.uiHidden, Duration = 1.5 })
-                end
-            end)
+            DestroyStatsOverlay()
+            if Core._toggleConn then
+                Core._toggleConn:Disconnect()
+                Core._toggleConn = nil
+            end
+            Window:Destroy()
         end,
     })
 end
