@@ -1,6 +1,7 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
+local ContentProvider = game:GetService("ContentProvider")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -8,7 +9,7 @@ local Intro = {}
 
 local LOGO_ID = "https://raw.githubusercontent.com/NONGFOUR888/TH-SONGS/refs/heads/main/C4rDev.PNG"
 
--- ===== หน้า Splash โลโก้ (ขึ้นก่อนทุกอย่าง) =====
+-- ===== หน้า Splash โลโก้ =====
 local function ShowSplash()
     local camera = workspace.CurrentCamera
 
@@ -19,26 +20,29 @@ local function ShowSplash()
     splashGui.IgnoreGuiInset = true
     splashGui.Parent = playerGui
 
-    -- พื้นหลังโปร่งใสบางๆ เต็มจอเสมอไม่ว่าอุปกรณ์ไหน (ของจริงจะเบลอฉากหลังผ่าน Lighting)
+    -- พื้นหลัง
     local bg = Instance.new("Frame")
     bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.Position = UDim2.new(0, 0, 0, 0)
     bg.BackgroundColor3 = Color3.fromRGB(5, 2, 10)
     bg.BackgroundTransparency = 0.55
     bg.BorderSizePixel = 0
     bg.ZIndex = 1
     bg.Parent = splashGui
 
-    -- เอฟเฟกต์เบลอฉากหลังเกมจริง (แทนพื้นดำทึบ)
+    -- เบลอฉากหลัง
     local blur = Instance.new("BlurEffect")
     blur.Name = "C4THSplashBlur"
     blur.Size = 0
     blur.Parent = Lighting
 
-    -- คำนวณขนาดโลโก้ตามขนาดจอจริง (Scale ตามด้านที่สั้นกว่า กันโลโก้เบี้ยว/ไม่พอดีจอ)
+    -- คำนวณขนาดโลโก้ (มี fallback ถ้าจอยังไม่พร้อม)
     local function getLogoSize()
         local vp = camera.ViewportSize
         local base = math.min(vp.X, vp.Y)
+        -- 🔧 แก้จุดที่ 1: ถ้าจอเป็น 0 ให้ใช้ค่า default
+        if base == 0 then
+            base = 800
+        end
         local size = base * 0.35
         return UDim2.new(0, size, 0, size)
     end
@@ -55,19 +59,35 @@ local function ShowSplash()
     logo.Size = UDim2.new(1, 0, 1, 0)
     logo.BackgroundTransparency = 1
     logo.Image = LOGO_ID
-    logo.ImageTransparency = 0
+    logo.ImageTransparency = 1  -- เริ่มจากจาง รอให้โหลดเสร็จค่อยแสดง
     logo.ScaleType = Enum.ScaleType.Fit
     logo.ZIndex = 2
     logo.Parent = logoHolder
 
-    -- ปรับขนาดใหม่อัตโนมัติถ้าหมุนจอ/เปลี่ยนขนาดจอระหว่างที่ยังโชว์อยู่
-    local resizeConn
-    resizeConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-        logoHolder.Size = getLogoSize()
+    -- 🔧 แก้จุดที่ 2: รอให้รูปโหลดก่อน แล้วค่อยเริ่มอนิเมชัน
+    local preloadSuccess = pcall(function()
+        ContentProvider:PreloadAsync({logo})
     end)
 
-    -- ขยายเข้ามาแบบลื่นๆ ตามขนาดจอจริง
+    -- ถ้าโหลดไม่สำเร็จ รออีกนิดให้จอพร้อม
+    if not preloadSuccess or camera.ViewportSize.X == 0 then
+        task.wait(0.5)
+    end
+
+    -- ปรับขนาดอัตโนมัติตอนหมุนจอ
+    local resizeConn
+    resizeConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        if logoHolder and logoHolder.Parent then
+            logoHolder.Size = getLogoSize()
+        end
+    end)
+
     local targetSize = getLogoSize()
+
+    -- แสดงโลโก้ (fade in)
+    logo.ImageTransparency = 0
+
+    -- ขยายเข้ามา
     local growTween = TweenService:Create(logoHolder, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Size = targetSize,
     })
@@ -79,10 +99,10 @@ local function ShowSplash()
     blurTween:Play()
     growTween.Completed:Wait()
 
-    -- ค้างไว้ให้เห็นชัดๆ
-    task.wait(1.0)
+    -- ค้างไว้ให้เห็นชัด
+    task.wait(1.2)
 
-    -- จางหายไปพร้อมกับพื้นหลังและเบลอ
+    -- จางหายไป
     local fadeLogo = TweenService:Create(logo, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         ImageTransparency = 1,
     })
@@ -102,15 +122,20 @@ local function ShowSplash()
     fadeBlur:Play()
     fadeLogo.Completed:Wait()
 
-    resizeConn:Disconnect()
-    blur:Destroy()
-    splashGui:Destroy()
+    -- 🔧 แก้จุดที่ 3: เช็คก่อน disconnect ป้องกัน error
+    if resizeConn then
+        resizeConn:Disconnect()
+    end
+    if blur and blur.Parent then
+        blur:Destroy()
+    end
+    if splashGui and splashGui.Parent then
+        splashGui:Destroy()
+    end
 end
 
 function Intro.Show(onNext)
-    -- โชว์โลโก้ แล้วเข้าสคริปต์ทันที ไม่ต้องกดปุ่มใดๆ
     ShowSplash()
-
     if onNext then
         onNext()
     end
