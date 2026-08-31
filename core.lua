@@ -1,7 +1,7 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Core = {}
-local HUB_VERSION = "v1.5"
+local HUB_VERSION = "v2"
 local CONFIG_FILE = "C4Hub_Config.json"
 
 local DEFAULT_CONFIG = {
@@ -12,7 +12,6 @@ local DEFAULT_CONFIG = {
     QuickCloseKey = "K",
 }
 
--- ยอมรับเฉพาะ key เหล่านี้จากไฟล์ config และเช็ค type ให้ตรงกับ default
 local CONFIG_VALIDATORS = {
     Theme = function(v)
         local valid = { Dark = true, Light = true, Emerald = true, Plant = true, Midnight = true, Violet = true, Rose = true, MonokaiPro = true }
@@ -80,7 +79,7 @@ local LANG = {
         discord = "Join Discord",
         discordCopied = "Link copied",
         discordDesc = "Paste it in your browser to join Discord",
-        discordFallback = "Couldn't copy automatically. Please copy this link manually: ",
+        discordFallback = "Couldn\'t copy automatically. Please copy this link manually: ",
         settings = "Settings",
         general = "General Settings",
         generalDesc = "Customize how the Hub works",
@@ -116,9 +115,7 @@ local function LoadConfig()
     for k, v in pairs(DEFAULT_CONFIG) do
         cfg[k] = v
     end
-
     local needsResave = false
-
     if isfile and isfile(CONFIG_FILE) then
         local ok, data = pcall(function()
             return game:GetService("HttpService"):JSONDecode(readfile(CONFIG_FILE))
@@ -127,12 +124,10 @@ local function LoadConfig()
             for k, validate in pairs(CONFIG_VALIDATORS) do
                 local raw = data[k]
                 if raw == nil then
-                    -- field ขาดหายจากไฟล์เก่า -> ใช้ default แล้วบันทึกกลับ
                     needsResave = true
                 else
                     local clean = validate(raw)
                     if clean == nil then
-                        -- ค่าผิด type/ไม่รู้จัก -> ใช้ default แล้วบันทึกกลับ
                         needsResave = true
                     else
                         cfg[k] = clean
@@ -140,11 +135,9 @@ local function LoadConfig()
                 end
             end
         else
-            -- ไฟล์เสีย/parse ไม่ได้ -> ใช้ default ทั้งหมดแล้วบันทึกทับ
             needsResave = true
         end
     end
-
     return cfg, needsResave
 end
 
@@ -164,21 +157,19 @@ do
     end
 end
 
--- ===== สไตล์: ชื่อ Hub ไล่สีม่วง-ขาว + พื้นหลังม่วงเข้มบนไล่ใสล่าง =====
 local TITLE_TEXT_GRADIENT = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromHex("#B39CFF")),   -- ม่วงอ่อน
-    ColorSequenceKeypoint.new(0.5, Color3.fromHex("#8A5CFF")), -- ม่วงสด
-    ColorSequenceKeypoint.new(1, Color3.fromHex("#FFFFFF")),   -- ขาว
+    ColorSequenceKeypoint.new(0, Color3.fromHex("#B39CFF")),
+    ColorSequenceKeypoint.new(0.5, Color3.fromHex("#8A5CFF")),
+    ColorSequenceKeypoint.new(1, Color3.fromHex("#FFFFFF")),
 })
 
 local function TryGetWindowBackground()
-    -- WindUI รองรับพื้นหลังแบบ gradient ผ่าน WindUI:Gradient() โดยตรง
     local ok, bg = pcall(function()
         return WindUI:Gradient({
-            ["0"] = { Color = Color3.fromHex("#150826"), Transparency = 0 },   -- บน: ม่วงเข้มทึบ
-            ["100"] = { Color = Color3.fromHex("#C9B8FF"), Transparency = 0.75 }, -- ล่าง: ม่วงอ่อนโปร่งใส
+            ["0"] = { Color = Color3.fromHex("#150826"), Transparency = 0 },
+            ["100"] = { Color = Color3.fromHex("#C9B8FF"), Transparency = 0.75 },
         }, {
-            Rotation = 90, -- แนวตั้ง บน -> ล่าง
+            Rotation = 90,
         })
     end)
     if ok then
@@ -187,15 +178,12 @@ local function TryGetWindowBackground()
     return nil
 end
 
--- Best-effort: หา TextLabel ของ Title ที่ WindUI สร้างขึ้นจริงใน PlayerGui แล้วใส่ gradient
--- ห่อด้วย pcall ทั้งหมดเพราะเป็นการอิงโครงสร้างภายในของ lib ซึ่งอาจเปลี่ยนได้ตามเวอร์ชัน
 local function TryStyleTitleText(titleString)
     task.spawn(function()
-        task.wait(0.5) -- รอให้ WindUI สร้าง GUI เสร็จก่อน
+        task.wait(0.5)
         pcall(function()
             local Players = game:GetService("Players")
             local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-
             for _, gui in ipairs(playerGui:GetChildren()) do
                 if gui:IsA("ScreenGui") then
                     for _, obj in ipairs(gui:GetDescendants()) do
@@ -218,48 +206,36 @@ end
 function Core.Init(mapName)
     local T = LANG[Core.Config.Language] or LANG.TH
     local windowTitle = "C4rDev Hub X " .. mapName
-
     local windowOptions = {
         Title = windowTitle,
-        Icon = "rbxassetid://81755635423577",
+        Icon = "rbxthumb://type=Asset&id=81755635423577&w=420&h=420",
         Theme = Core.Config.Theme,
     }
-
     local bg = TryGetWindowBackground()
     if bg then
         windowOptions.Background = bg
     end
-
     local Window = WindUI:CreateWindow(windowOptions)
-
     TryStyleTitleText(windowTitle)
-
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
-
     local HomeTab = Window:Tab({ Title = T.home, Icon = "house" })
-
     local ProfileSection = HomeTab:Section({ Title = T.profileSection, Desc = mapName })
-
     local content = Players:GetUserThumbnailAsync(
         LocalPlayer.UserId,
         Enum.ThumbnailType.HeadShot,
         Enum.ThumbnailSize.Size420x420
     )
-
     ProfileSection:Image({
         Image = content,
         AspectRatio = "1:1",
         Radius = 12,
     })
-
     ProfileSection:Space()
-
     HomeTab:Paragraph({
         Title = LocalPlayer.DisplayName,
         Desc = "@" .. LocalPlayer.Name .. "  |  UserId: " .. LocalPlayer.UserId,
     })
-
     HomeTab:Button({
         Title = T.version .. HUB_VERSION,
         Icon = "star",
@@ -271,7 +247,6 @@ function Core.Init(mapName)
             })
         end,
     })
-
     HomeTab:Button({
         Title = T.discord,
         Icon = "message-circle",
@@ -282,7 +257,6 @@ function Core.Init(mapName)
                 local ok = pcall(setclipboard, discordLink)
                 copied = ok
             end
-
             if copied then
                 WindUI:Notify({
                     Title = T.discordCopied,
@@ -298,8 +272,6 @@ function Core.Init(mapName)
             end
         end,
     })
-
-    -- ===== ปุ่มลัดปิด Hub =====
     local UserInputService = game:GetService("UserInputService")
     local quickCloseConn
     quickCloseConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -317,22 +289,15 @@ function Core.Init(mapName)
             end
         end
     end)
-
-    -- เก็บ connection ไว้ใน Core เผื่อต้อง disconnect จากที่อื่น (เช่นปุ่ม "ปิด Hub" ใน Settings)
     Core._quickCloseConn = quickCloseConn
-
     return Window, WindUI
 end
 
 function Core.Settings(Window, WindUI)
     local T = LANG[Core.Config.Language] or LANG.TH
     local Players = game:GetService("Players")
-
     local SettingsTab = Window:Tab({ Title = T.settings, Icon = "settings" })
-
-    -- ===== ทั่วไป =====
     SettingsTab:Section({ Title = T.general, Desc = T.generalDesc })
-
     SettingsTab:Dropdown({
         Title = T.theme,
         Values = { "Dark", "Light", "Emerald", "Plant", "Midnight", "Violet", "Rose", "MonokaiPro" },
@@ -342,12 +307,8 @@ function Core.Settings(Window, WindUI)
             WindUI:SetTheme(selected)
         end,
     })
-
-    -- ===== การเชื่อมต่อ =====
     SettingsTab:Section({ Title = T.connection, Desc = T.connectionDesc })
-
     local TeleportService = game:GetService("TeleportService")
-
     SettingsTab:Toggle({
         Title = T.autoreconnect,
         Desc = T.autoreconnectDesc,
@@ -361,7 +322,6 @@ function Core.Settings(Window, WindUI)
             })
         end,
     })
-
     game:BindToClose(function()
         if Core.Config.AutoReconnect then
             pcall(function()
@@ -369,10 +329,7 @@ function Core.Settings(Window, WindUI)
             end)
         end
     end)
-
-    -- ===== ภาษา =====
     SettingsTab:Section({ Title = T.language, Desc = T.languageDesc })
-
     SettingsTab:Dropdown({
         Title = T.language,
         Values = { "TH", "EN" },
@@ -381,29 +338,23 @@ function Core.Settings(Window, WindUI)
             Core.Config.Language = selected
         end,
     })
-
-    -- ===== รูปลักษณ์ =====
     SettingsTab:Section({ Title = T.appearance, Desc = T.appearanceDesc })
-
     SettingsTab:Slider({
         Title = T.transparency,
         Value = { Min = 0, Max = 80, Default = Core.Config.Transparency },
         Callback = function(value)
             Core.Config.Transparency = value
             local applied = false
-
             pcall(function()
                 Window:SetTransparency(value / 100)
                 applied = true
             end)
-
             if not applied then
                 pcall(function()
                     Window.Transparency = value / 100
                     applied = true
                 end)
             end
-
             if not applied then
                 WindUI:Notify({
                     Title = T.appearance,
@@ -413,10 +364,7 @@ function Core.Settings(Window, WindUI)
             end
         end,
     })
-
-    -- ===== ปุ่มลัด =====
     SettingsTab:Section({ Title = T.keybindSection, Desc = T.keybindDesc })
-
     SettingsTab:Dropdown({
         Title = T.quickCloseKey,
         Values = { "K", "L", "J", "Insert", "End", "RightShift", "F4" },
@@ -425,27 +373,19 @@ function Core.Settings(Window, WindUI)
             Core.Config.QuickCloseKey = selected
         end,
     })
-
-    -- ===== สถิติ FPS/Ping =====
     SettingsTab:Section({ Title = T.stats, Desc = T.statsDesc })
-
     local StatsGui = nil
     local StatsConnection = nil
-
     local function CreateStatsOverlay()
         local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-
-        -- เผื่อมี overlay ค้างจาก session ก่อนหน้า (เช่น re-execute script)
         local existing = playerGui:FindFirstChild("C4THStatsOverlay")
         if existing then
             existing:Destroy()
         end
-
         StatsGui = Instance.new("ScreenGui")
         StatsGui.Name = "C4THStatsOverlay"
         StatsGui.ResetOnSpawn = false
         StatsGui.Parent = playerGui
-
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(0, 110, 0, 50)
         frame.Position = UDim2.new(0, 10, 0, 10)
@@ -453,7 +393,6 @@ function Core.Settings(Window, WindUI)
         frame.BackgroundTransparency = 0.3
         frame.Parent = StatsGui
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
-
         local fpsLabel = Instance.new("TextLabel")
         fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
         fpsLabel.BackgroundTransparency = 1
@@ -462,7 +401,6 @@ function Core.Settings(Window, WindUI)
         fpsLabel.Font = Enum.Font.GothamBold
         fpsLabel.TextSize = 14
         fpsLabel.Parent = frame
-
         local pingLabel = Instance.new("TextLabel")
         pingLabel.Size = UDim2.new(1, 0, 0.5, 0)
         pingLabel.Position = UDim2.new(0, 0, 0.5, 0)
@@ -472,11 +410,9 @@ function Core.Settings(Window, WindUI)
         pingLabel.Font = Enum.Font.GothamBold
         pingLabel.TextSize = 14
         pingLabel.Parent = frame
-
         local RunService = game:GetService("RunService")
         local frameCount = 0
         local lastTime = tick()
-
         StatsConnection = RunService.Heartbeat:Connect(function()
             frameCount = frameCount + 1
             local now = tick()
@@ -484,7 +420,6 @@ function Core.Settings(Window, WindUI)
                 fpsLabel.Text = "FPS: " .. frameCount
                 frameCount = 0
                 lastTime = now
-
                 pcall(function()
                     local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
                     pingLabel.Text = "Ping: " .. math.floor(ping) .. " ms"
@@ -492,7 +427,6 @@ function Core.Settings(Window, WindUI)
             end
         end)
     end
-
     local function DestroyStatsOverlay()
         if StatsConnection then
             StatsConnection:Disconnect()
@@ -503,7 +437,6 @@ function Core.Settings(Window, WindUI)
             StatsGui = nil
         end
     end
-
     SettingsTab:Toggle({
         Title = T.showStats,
         Value = false,
@@ -515,10 +448,7 @@ function Core.Settings(Window, WindUI)
             end
         end,
     })
-
-    -- ===== บันทึก/รีเซ็ต =====
     SettingsTab:Section({ Title = T.configSection, Desc = T.configDesc })
-
     SettingsTab:Button({
         Title = T.saveConfig,
         Icon = "save",
@@ -527,7 +457,6 @@ function Core.Settings(Window, WindUI)
             WindUI:Notify({ Title = T.settings, Content = T.savedMsg, Duration = 2 })
         end,
     })
-
     SettingsTab:Button({
         Title = T.resetConfig,
         Icon = "rotate-ccw",
@@ -542,7 +471,6 @@ function Core.Settings(Window, WindUI)
             WindUI:Notify({ Title = T.settings, Content = T.resetMsg, Duration = 4 })
         end,
     })
-
     SettingsTab:Button({
         Title = T.closehub,
         Icon = "x",
