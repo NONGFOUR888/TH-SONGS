@@ -221,7 +221,7 @@ function Core.Init(mapName)
 
     local windowOptions = {
         Title = windowTitle,
-        Icon = "https://raw.githubusercontent.com/NONGFOUR888/TH-SONGS/refs/heads/main/C4rDev.PNG",
+        Icon = "rbxassetid://81755635423577",
         Theme = Core.Config.Theme,
     }
 
