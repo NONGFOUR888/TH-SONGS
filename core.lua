@@ -1,7 +1,7 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Core = {}
-local HUB_VERSION = "v2"
+local HUB_VERSION = "v1.5"
 local CONFIG_FILE = "C4Hub_Config.json"
 
 local DEFAULT_CONFIG = {
@@ -9,7 +9,7 @@ local DEFAULT_CONFIG = {
     AutoReconnect = false,
     Language = "TH",
     Transparency = 0,
-    ToggleUIKey = "F4",
+    ToggleUIKey = "P",
 }
 
 local CONFIG_VALIDATORS = {
@@ -81,7 +81,7 @@ local LANG = {
         discord = "Join Discord",
         discordCopied = "Link copied",
         discordDesc = "Paste it in your browser to join Discord",
-        discordFallback = "Couldn't copy automatically. Please copy this link manually: ",
+        discordFallback = "Couldn\'t copy automatically. Please copy this link manually: ",
         settings = "Settings",
         general = "General Settings",
         generalDesc = "Customize how the Hub works",
