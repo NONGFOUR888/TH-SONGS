@@ -9,7 +9,7 @@ local DEFAULT_CONFIG = {
     AutoReconnect = false,
     Language = "TH",
     Transparency = 0,
-    ToggleUIKey = "RightShift",
+    ToggleUIKey = "F4",
 }
 
 local CONFIG_VALIDATORS = {
