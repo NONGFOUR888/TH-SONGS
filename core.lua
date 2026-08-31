@@ -9,7 +9,7 @@ local DEFAULT_CONFIG = {
     AutoReconnect = false,
     Language = "TH",
     Transparency = 0,
-    QuickCloseKey = "K",
+    ToggleUIKey = "RightShift",
 }
 
 local CONFIG_VALIDATORS = {
@@ -29,8 +29,8 @@ local CONFIG_VALIDATORS = {
         if v > 80 then v = 80 end
         return v
     end,
-    QuickCloseKey = function(v)
-        local valid = { K = true, L = true, J = true, Insert = true, End = true, RightShift = true, F4 = true }
+    ToggleUIKey = function(v)
+        local valid = { RightShift = true, LeftShift = true, Insert = true, Home = true, End = true, PageUp = true, PageDown = true, F1 = true, F2 = true, F3 = true, F4 = true, F5 = true, F6 = true, F7 = true, F8 = true, F9 = true, F10 = true, F11 = true, F12 = true }
         return type(v) == "string" and valid[v] and v or nil
     end,
 }
@@ -58,8 +58,8 @@ local LANG = {
         appearanceDesc = "ปรับความโปร่งใสของหน้าต่าง Hub",
         transparency = "ความโปร่งใส",
         keybindSection = "ปุ่มลัด",
-        keybindDesc = "เลือกปุ่มสำหรับปิด Hub อย่างเร็ว",
-        quickCloseKey = "ปุ่มปิดด่วน",
+        keybindDesc = "เลือกปุ่มสำหรับซ่อน/เปิด Hub",
+        toggleUIKey = "ปุ่มซ่อน/เปิด Hub",
         stats = "แสดงสถิติ",
         statsDesc = "โชว์กรอบ FPS/Ping มุมจอ",
         showStats = "แสดง FPS/Ping",
@@ -69,8 +69,10 @@ local LANG = {
         savedMsg = "บันทึกการตั้งค่าแล้ว",
         resetConfig = "รีเซ็ตการตั้งค่าทั้งหมด",
         resetMsg = "รีเซ็ตเรียบร้อยแล้ว เข้าเกมใหม่เพื่อให้มีผลเต็มที่",
-        closehub = "ปิด Hub",
+        togglehub = "ซ่อน/เปิด Hub",
         transparencyUnsupported = "WindUI เวอร์ชันนี้ยังไม่รองรับการปรับความโปร่งใส",
+        uiHidden = "Hub ถูกซ่อนแล้ว",
+        uiShown = "Hub แสดงแล้ว",
     },
     EN = {
         home = "Home",
@@ -79,7 +81,7 @@ local LANG = {
         discord = "Join Discord",
         discordCopied = "Link copied",
         discordDesc = "Paste it in your browser to join Discord",
-        discordFallback = "Couldn\'t copy automatically. Please copy this link manually: ",
+        discordFallback = "Couldn't copy automatically. Please copy this link manually: ",
         settings = "Settings",
         general = "General Settings",
         generalDesc = "Customize how the Hub works",
@@ -94,8 +96,8 @@ local LANG = {
         appearanceDesc = "Adjust the Hub window transparency",
         transparency = "Transparency",
         keybindSection = "Keybind",
-        keybindDesc = "Choose a key to quickly close the Hub",
-        quickCloseKey = "Quick close key",
+        keybindDesc = "Choose a key to toggle the Hub visibility",
+        toggleUIKey = "Toggle UI key",
         stats = "Show Stats",
         statsDesc = "Show an FPS/Ping overlay on screen",
         showStats = "Show FPS/Ping",
@@ -105,8 +107,10 @@ local LANG = {
         savedMsg = "Settings saved",
         resetConfig = "Reset All Settings",
         resetMsg = "Reset done. Rejoin for full effect.",
-        closehub = "Close Hub",
+        togglehub = "Toggle Hub",
         transparencyUnsupported = "This WindUI version does not support transparency yet",
+        uiHidden = "Hub is now hidden",
+        uiShown = "Hub is now visible",
     },
 }
 
@@ -217,79 +221,40 @@ function Core.Init(mapName)
     end
     local Window = WindUI:CreateWindow(windowOptions)
     TryStyleTitleText(windowTitle)
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
-    local HomeTab = Window:Tab({ Title = T.home, Icon = "house" })
-    local ProfileSection = HomeTab:Section({ Title = T.profileSection, Desc = mapName })
-    local content = Players:GetUserThumbnailAsync(
-        LocalPlayer.UserId,
-        Enum.ThumbnailType.HeadShot,
-        Enum.ThumbnailSize.Size420x420
-    )
-    ProfileSection:Image({
-        Image = content,
-        AspectRatio = "1:1",
-        Radius = 12,
-    })
-    ProfileSection:Space()
-    HomeTab:Paragraph({
-        Title = LocalPlayer.DisplayName,
-        Desc = "@" .. LocalPlayer.Name .. "  |  UserId: " .. LocalPlayer.UserId,
-    })
-    HomeTab:Button({
-        Title = T.version .. HUB_VERSION,
-        Icon = "star",
-        Callback = function()
-            WindUI:Notify({
-                Title = "C4rDev Hub",
-                Content = T.version .. HUB_VERSION,
-                Duration = 3,
-            })
-        end,
-    })
-    HomeTab:Button({
-        Title = T.discord,
-        Icon = "message-circle",
-        Callback = function()
-            local discordLink = "https://discord.gg/x5JFy9xzdb"
-            local copied = false
-            if setclipboard then
-                local ok = pcall(setclipboard, discordLink)
-                copied = ok
-            end
-            if copied then
-                WindUI:Notify({
-                    Title = T.discordCopied,
-                    Content = T.discordDesc,
-                    Duration = 3,
-                })
-            else
-                WindUI:Notify({
-                    Title = T.discord,
-                    Content = T.discordFallback .. discordLink,
-                    Duration = 6,
-                })
-            end
-        end,
-    })
+
+    Core._Window = Window
+    Core._isUIOpen = true
+
     local UserInputService = game:GetService("UserInputService")
-    local quickCloseConn
-    quickCloseConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    local toggleConn
+    toggleConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.UserInputType == Enum.UserInputType.Keyboard then
-            local keyEnum = Enum.KeyCode[Core.Config.QuickCloseKey]
+            local keyEnum = Enum.KeyCode[Core.Config.ToggleUIKey]
             if keyEnum and input.KeyCode == keyEnum then
-                if quickCloseConn then
-                    quickCloseConn:Disconnect()
-                    quickCloseConn = nil
-                end
+                Core._isUIOpen = not Core._isUIOpen
                 pcall(function()
-                    Window:Destroy()
+                    if Core._isUIOpen then
+                        Window:Show()
+                        WindUI:Notify({
+                            Title = "C4rDev Hub",
+                            Content = T.uiShown,
+                            Duration = 1.5,
+                        })
+                    else
+                        Window:Hide()
+                        WindUI:Notify({
+                            Title = "C4rDev Hub",
+                            Content = T.uiHidden,
+                            Duration = 1.5,
+                        })
+                    end
                 end)
             end
         end
     end)
-    Core._quickCloseConn = quickCloseConn
+    Core._toggleConn = toggleConn
+
     return Window, WindUI
 end
 
@@ -366,11 +331,16 @@ function Core.Settings(Window, WindUI)
     })
     SettingsTab:Section({ Title = T.keybindSection, Desc = T.keybindDesc })
     SettingsTab:Dropdown({
-        Title = T.quickCloseKey,
-        Values = { "K", "L", "J", "Insert", "End", "RightShift", "F4" },
-        Value = Core.Config.QuickCloseKey,
+        Title = T.toggleUIKey,
+        Values = { "RightShift", "LeftShift", "Insert", "Home", "End", "PageUp", "PageDown", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" },
+        Value = Core.Config.ToggleUIKey,
         Callback = function(selected)
-            Core.Config.QuickCloseKey = selected
+            Core.Config.ToggleUIKey = selected
+            WindUI:Notify({
+                Title = T.keybindSection,
+                Content = "Toggle key set to: " .. selected,
+                Duration = 2,
+            })
         end,
     })
     SettingsTab:Section({ Title = T.stats, Desc = T.statsDesc })
@@ -472,15 +442,19 @@ function Core.Settings(Window, WindUI)
         end,
     })
     SettingsTab:Button({
-        Title = T.closehub,
-        Icon = "x",
+        Title = T.togglehub,
+        Icon = "eye",
         Callback = function()
-            DestroyStatsOverlay()
-            if Core._quickCloseConn then
-                Core._quickCloseConn:Disconnect()
-                Core._quickCloseConn = nil
-            end
-            Window:Destroy()
+            Core._isUIOpen = not Core._isUIOpen
+            pcall(function()
+                if Core._isUIOpen then
+                    Window:Show()
+                    WindUI:Notify({ Title = "C4rDev Hub", Content = T.uiShown, Duration = 1.5 })
+                else
+                    Window:Hide()
+                    WindUI:Notify({ Title = "C4rDev Hub", Content = T.uiHidden, Duration = 1.5 })
+                end
+            end)
         end,
     })
 end
