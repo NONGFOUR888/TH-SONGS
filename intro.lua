@@ -6,41 +6,8 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local Intro = {}
 
-local LOGO_URL = "https://raw.githubusercontent.com/NONGFOUR888/TH-SONGS/refs/heads/main/C4rDev.PNG"
-
--- ===== โหลดรูปผ่าน getcustomasset (เสถียรที่สุด ไม่โดนบล็อก) =====
-local function GetLogoAsset()
-    -- ลองใช้ getcustomasset ก่อน (executor สมัยใหม่รองรับ)
-    if getcustomasset and writefile and isfile then
-        local assetName = "C4rDev_Logo.png"
-
-        -- ถ้ายังไม่มีไฟล์ ให้ดาวน์โหลดจาก GitHub
-        if not isfile(assetName) then
-            local success, imgData = pcall(function()
-                return game:HttpGet(LOGO_URL)
-            end)
-
-            if success and imgData and #imgData > 100 then
-                pcall(function()
-                    writefile(assetName, imgData)
-                end)
-            end
-        end
-
-        -- ถ้ามีไฟล์แล้ว ใช้ getcustomasset
-        if isfile(assetName) then
-            local success, assetId = pcall(function()
-                return getcustomasset(assetName)
-            end)
-            if success and assetId then
-                return assetId
-            end
-        end
-    end
-
-    -- Fallback: ใช้ลิงก์ตรง (บาง executor อาจโหลดได้)
-    return LOGO_URL
-end
+-- ใช้ Asset ID ที่คุณอัปโหลดบน Roblox
+local LOGO_ID = "rbxassetid://81755635423577"
 
 -- ===== หน้า Splash โลโก้ =====
 local function ShowSplash()
@@ -85,19 +52,16 @@ local function ShowSplash()
     logoHolder.ZIndex = 2
     logoHolder.Parent = splashGui
 
-    -- โหลด asset ก่อนสร้าง ImageLabel
-    local logoAsset = GetLogoAsset()
-
     local logo = Instance.new("ImageLabel")
     logo.Size = UDim2.new(1, 0, 1, 0)
     logo.BackgroundTransparency = 1
-    logo.Image = logoAsset
-    logo.ImageTransparency = 1  -- เริ่มจากจาง รอให้พร้อมค่อยแสดง
+    logo.Image = LOGO_ID
+    logo.ImageTransparency = 1
     logo.ScaleType = Enum.ScaleType.Fit
     logo.ZIndex = 2
     logo.Parent = logoHolder
 
-    -- รอให้รูปโหลด (สูงสุด 3 วินาที)
+    -- รอให้รูปโหลด
     local startTime = tick()
     while tick() - startTime < 3 do
         if logo.IsLoaded then
