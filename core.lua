@@ -4,6 +4,23 @@ local Core = {}
 local HUB_VERSION = "v1.5"
 local CONFIG_FILE = "C4Hub_Config.json"
 
+local ALL_KEYS = {
+    "P", "RightShift", "LeftShift", "Insert", "Home", "End", "PageUp", "PageDown",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Zero",
+    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+    "LeftControl", "RightControl", "LeftAlt", "RightAlt", "Tab", "CapsLock",
+    "Up", "Down", "Left", "Right", "Slash", "Period", "Comma", "Semicolon",
+    "LeftBracket", "RightBracket", "Minus", "Equals", "Quote", "Backslash",
+    "Backspace", "Delete", "Escape", "Space", "Return", "Backquote",
+}
+
+local KEY_VALID_MAP = {}
+for _, k in ipairs(ALL_KEYS) do
+    KEY_VALID_MAP[k] = true
+end
+
 local DEFAULT_CONFIG = {
     Theme = "Violet",
     AutoReconnect = false,
@@ -30,8 +47,7 @@ local CONFIG_VALIDATORS = {
         return v
     end,
     ToggleUIKey = function(v)
-        local valid = { RightShift = true, LeftShift = true, Insert = true, Home = true, End = true, PageUp = true, PageDown = true, F1 = true, F2 = true, F3 = true, F4 = true, F5 = true, F6 = true, F7 = true, F8 = true, F9 = true, F10 = true, F11 = true, F12 = true }
-        return type(v) == "string" and valid[v] and v or nil
+        return type(v) == "string" and KEY_VALID_MAP[v] and v or nil
     end,
 }
 
@@ -58,7 +74,7 @@ local LANG = {
         appearanceDesc = "ปรับความโปร่งใสของหน้าต่าง Hub",
         transparency = "ความโปร่งใส",
         keybindSection = "ปุ่มลัด",
-        keybindDesc = "เลือกปุ่มสำหรับซ่อน/เปิด Hub",
+        keybindDesc = "กดที่กรอบปุ่มเพื่อตั้งค่าใหม่",
         toggleUIKey = "ปุ่มซ่อน/เปิด Hub",
         stats = "แสดงสถิติ",
         statsDesc = "โชว์กรอบ FPS/Ping มุมจอ",
@@ -73,6 +89,9 @@ local LANG = {
         transparencyUnsupported = "WindUI เวอร์ชันนี้ยังไม่รองรับการปรับความโปร่งใส",
         uiHidden = "Hub ถูกซ่อนแล้ว",
         uiShown = "Hub แสดงแล้ว",
+        pressAnyKey = "กดปุ่มที่ต้องการบนคีย์บอร์ด...",
+        keybindSet = "ตั้งค่าเป็น: ",
+        keybindCancelled = "ยกเลิกการตั้งค่า",
     },
     EN = {
         home = "Home",
@@ -96,7 +115,7 @@ local LANG = {
         appearanceDesc = "Adjust the Hub window transparency",
         transparency = "Transparency",
         keybindSection = "Keybind",
-        keybindDesc = "Choose a key to toggle the Hub visibility",
+        keybindDesc = "Click the key box to set a new key",
         toggleUIKey = "Toggle UI key",
         stats = "Show Stats",
         statsDesc = "Show an FPS/Ping overlay on screen",
@@ -111,6 +130,9 @@ local LANG = {
         transparencyUnsupported = "This WindUI version does not support transparency yet",
         uiHidden = "Hub is now hidden",
         uiShown = "Hub is now visible",
+        pressAnyKey = "Press any key on your keyboard...",
+        keybindSet = "Set to: ",
+        keybindCancelled = "Keybind cancelled",
     },
 }
 
@@ -236,18 +258,8 @@ function Core.Init(mapName)
                 pcall(function()
                     if Core._isUIOpen then
                         Window:Show()
-                        WindUI:Notify({
-                            Title = "C4rDev Hub",
-                            Content = T.uiShown,
-                            Duration = 1.5,
-                        })
                     else
                         Window:Hide()
-                        WindUI:Notify({
-                            Title = "C4rDev Hub",
-                            Content = T.uiHidden,
-                            Duration = 1.5,
-                        })
                     end
                 end)
             end
@@ -329,20 +341,201 @@ function Core.Settings(Window, WindUI)
             end
         end,
     })
+
+    -- ============================================
+    -- CUSTOM KEYBIND COMPONENT (Rayfield Style)
+    -- ============================================
     SettingsTab:Section({ Title = T.keybindSection, Desc = T.keybindDesc })
-    SettingsTab:Dropdown({
-        Title = T.toggleUIKey,
-        Values = { "RightShift", "LeftShift", "Insert", "Home", "End", "PageUp", "PageDown", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" },
-        Value = Core.Config.ToggleUIKey,
-        Callback = function(selected)
-            Core.Config.ToggleUIKey = selected
-            WindUI:Notify({
-                Title = T.keybindSection,
-                Content = "Toggle key set to: " .. selected,
-                Duration = 2,
-            })
-        end,
-    })
+
+    task.spawn(function()
+        task.wait(0.8)
+        pcall(function()
+            local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+            local sectionLabel = nil
+            local targetGui = nil
+
+            for _, gui in ipairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") then
+                    for _, obj in ipairs(gui:GetDescendants()) do
+                        if obj:IsA("TextLabel") and obj.Text == T.keybindSection then
+                            sectionLabel = obj
+                            targetGui = gui
+                            break
+                        end
+                    end
+                end
+                if sectionLabel then break end
+            end
+
+            if not sectionLabel then return end
+
+            local sectionParent = sectionLabel.Parent
+            if not sectionParent then return end
+
+            -- Create Keybind Row
+            local row = Instance.new("Frame")
+            row.Name = "C4THKeybindRow"
+            row.Size = UDim2.new(1, -20, 0, 40)
+            row.BackgroundTransparency = 1
+            row.Parent = sectionParent
+
+            -- Label
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -80, 1, 0)
+            label.Position = UDim2.new(0, 0, 0, 0)
+            label.BackgroundTransparency = 1
+            label.Text = T.toggleUIKey
+            label.TextColor3 = Color3.fromRGB(200, 200, 200)
+            label.Font = Enum.Font.Gotham
+            label.TextSize = 14
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.Parent = row
+
+            -- Key Box (Rayfield Style)
+            local keyBox = Instance.new("TextButton")
+            keyBox.Name = "KeyBox"
+            keyBox.Size = UDim2.new(0, 55, 0, 28)
+            keyBox.Position = UDim2.new(1, -55, 0.5, -14)
+            keyBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+            keyBox.BorderSizePixel = 0
+            keyBox.Text = Core.Config.ToggleUIKey
+            keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            keyBox.Font = Enum.Font.GothamBold
+            keyBox.TextSize = 13
+            keyBox.AutoButtonColor = true
+            keyBox.Parent = row
+
+            local boxCorner = Instance.new("UICorner")
+            boxCorner.CornerRadius = UDim.new(0, 6)
+            boxCorner.Parent = keyBox
+
+            local boxStroke = Instance.new("UIStroke")
+            boxStroke.Color = Color3.fromRGB(70, 70, 85)
+            boxStroke.Thickness = 1
+            boxStroke.Parent = keyBox
+
+            -- Hover effects
+            keyBox.MouseEnter:Connect(function()
+                if not keyBox:GetAttribute("Listening") then
+                    keyBox.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+                    boxStroke.Color = Color3.fromRGB(90, 90, 110)
+                end
+            end)
+
+            keyBox.MouseLeave:Connect(function()
+                if not keyBox:GetAttribute("Listening") then
+                    keyBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+                    boxStroke.Color = Color3.fromRGB(70, 70, 85)
+                end
+            end)
+
+            -- Listening logic
+            local inputConn = nil
+            local cancelConn = nil
+
+            keyBox.MouseButton1Click:Connect(function()
+                if keyBox:GetAttribute("Listening") then return end
+                keyBox:SetAttribute("Listening", true)
+                keyBox.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+                keyBox.Text = "..."
+                boxStroke.Color = Color3.fromRGB(0, 170, 255)
+
+                WindUI:Notify({
+                    Title = T.keybindSection,
+                    Content = T.pressAnyKey,
+                    Duration = 4,
+                })
+
+                local UserInputService = game:GetService("UserInputService")
+
+                inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                    if gameProcessed then return end
+                    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+                    local keyName = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
+
+                    -- Validate key
+                    if not KEY_VALID_MAP[keyName] then
+                        keyName = "P"
+                    end
+
+                    Core.Config.ToggleUIKey = keyName
+                    SaveConfigToFile(Core.Config)
+
+                    keyBox.Text = keyName
+                    keyBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+                    boxStroke.Color = Color3.fromRGB(70, 70, 85)
+                    keyBox:SetAttribute("Listening", false)
+
+                    WindUI:Notify({
+                        Title = T.keybindSection,
+                        Content = T.keybindSet .. keyName,
+                        Duration = 2,
+                    })
+
+                    if inputConn then
+                        inputConn:Disconnect()
+                        inputConn = nil
+                    end
+                    if cancelConn then
+                        cancelConn:Disconnect()
+                        cancelConn = nil
+                    end
+                end)
+
+                -- Cancel on mouse click outside
+                cancelConn = UserInputService.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local absPos = keyBox.AbsolutePosition
+                        local absSize = keyBox.AbsoluteSize
+                        if mousePos.X < absPos.X or mousePos.X > absPos.X + absSize.X or
+                           mousePos.Y < absPos.Y or mousePos.Y > absPos.Y + absSize.Y then
+                            keyBox.Text = Core.Config.ToggleUIKey
+                            keyBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+                            boxStroke.Color = Color3.fromRGB(70, 70, 85)
+                            keyBox:SetAttribute("Listening", false)
+
+                            WindUI:Notify({
+                                Title = T.keybindSection,
+                                Content = T.keybindCancelled,
+                                Duration = 2,
+                            })
+
+                            if inputConn then
+                                inputConn:Disconnect()
+                                inputConn = nil
+                            end
+                            if cancelConn then
+                                cancelConn:Disconnect()
+                                cancelConn = nil
+                            end
+                        end
+                    end
+                end)
+
+                -- Auto cancel after 5 seconds
+                task.delay(5, function()
+                    if keyBox:GetAttribute("Listening") then
+                        keyBox.Text = Core.Config.ToggleUIKey
+                        keyBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+                        boxStroke.Color = Color3.fromRGB(70, 70, 85)
+                        keyBox:SetAttribute("Listening", false)
+
+                        if inputConn then
+                            inputConn:Disconnect()
+                            inputConn = nil
+                        end
+                        if cancelConn then
+                            cancelConn:Disconnect()
+                            cancelConn = nil
+                        end
+                    end
+                end)
+            end)
+        end)
+    end)
+
     SettingsTab:Section({ Title = T.stats, Desc = T.statsDesc })
     local StatsGui = nil
     local StatsConnection = nil
