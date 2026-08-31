@@ -6,10 +6,8 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local Intro = {}
 
--- ใช้ Asset ID ที่คุณอัปโหลดบน Roblox
-local LOGO_ID = "rbxassetid://81755635423577"
+local LOGO_ID = "rbxthumb://type=Asset&id=81755635423577&w=420&h=420"
 
--- ===== หน้า Splash โลโก้ =====
 local function ShowSplash()
     local camera = workspace.CurrentCamera
 
@@ -20,7 +18,6 @@ local function ShowSplash()
     splashGui.IgnoreGuiInset = true
     splashGui.Parent = playerGui
 
-    -- พื้นหลัง
     local bg = Instance.new("Frame")
     bg.Size = UDim2.new(1, 0, 1, 0)
     bg.BackgroundColor3 = Color3.fromRGB(5, 2, 10)
@@ -29,13 +26,11 @@ local function ShowSplash()
     bg.ZIndex = 1
     bg.Parent = splashGui
 
-    -- เบลอฉากหลัง
     local blur = Instance.new("BlurEffect")
     blur.Name = "C4THSplashBlur"
     blur.Size = 0
     blur.Parent = Lighting
 
-    -- คำนวณขนาดโลโก้
     local function getLogoSize()
         local vp = camera.ViewportSize
         local base = math.min(vp.X, vp.Y)
@@ -61,7 +56,6 @@ local function ShowSplash()
     logo.ZIndex = 2
     logo.Parent = logoHolder
 
-    -- รอให้รูปโหลด
     local startTime = tick()
     while tick() - startTime < 3 do
         if logo.IsLoaded then
@@ -70,7 +64,6 @@ local function ShowSplash()
         task.wait(0.1)
     end
 
-    -- ปรับขนาดอัตโนมัติตอนหมุนจอ
     local resizeConn
     resizeConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
         if logoHolder and logoHolder.Parent then
@@ -79,11 +72,8 @@ local function ShowSplash()
     end)
 
     local targetSize = getLogoSize()
-
-    -- แสดงโลโก้
     logo.ImageTransparency = 0
 
-    -- ขยายเข้ามา
     local growTween = TweenService:Create(logoHolder, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Size = targetSize,
     })
@@ -95,10 +85,8 @@ local function ShowSplash()
     blurTween:Play()
     growTween.Completed:Wait()
 
-    -- ค้างไว้ให้เห็นชัด
     task.wait(1.2)
 
-    -- จางหายไป
     local fadeLogo = TweenService:Create(logo, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         ImageTransparency = 1,
     })
@@ -118,7 +106,6 @@ local function ShowSplash()
     fadeBlur:Play()
     fadeLogo.Completed:Wait()
 
-    -- ทำความสะอาด
     if resizeConn then
         resizeConn:Disconnect()
     end
