@@ -1,13 +1,46 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
-local ContentProvider = game:GetService("ContentProvider")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local Intro = {}
 
-local LOGO_ID = "https://raw.githubusercontent.com/NONGFOUR888/TH-SONGS/refs/heads/main/C4rDev.PNG"
+local LOGO_URL = "https://raw.githubusercontent.com/NONGFOUR888/TH-SONGS/refs/heads/main/C4rDev.PNG"
+
+-- ===== โหลดรูปผ่าน getcustomasset (เสถียรที่สุด ไม่โดนบล็อก) =====
+local function GetLogoAsset()
+    -- ลองใช้ getcustomasset ก่อน (executor สมัยใหม่รองรับ)
+    if getcustomasset and writefile and isfile then
+        local assetName = "C4rDev_Logo.png"
+
+        -- ถ้ายังไม่มีไฟล์ ให้ดาวน์โหลดจาก GitHub
+        if not isfile(assetName) then
+            local success, imgData = pcall(function()
+                return game:HttpGet(LOGO_URL)
+            end)
+
+            if success and imgData and #imgData > 100 then
+                pcall(function()
+                    writefile(assetName, imgData)
+                end)
+            end
+        end
+
+        -- ถ้ามีไฟล์แล้ว ใช้ getcustomasset
+        if isfile(assetName) then
+            local success, assetId = pcall(function()
+                return getcustomasset(assetName)
+            end)
+            if success and assetId then
+                return assetId
+            end
+        end
+    end
+
+    -- Fallback: ใช้ลิงก์ตรง (บาง executor อาจโหลดได้)
+    return LOGO_URL
+end
 
 -- ===== หน้า Splash โลโก้ =====
 local function ShowSplash()
@@ -35,14 +68,11 @@ local function ShowSplash()
     blur.Size = 0
     blur.Parent = Lighting
 
-    -- คำนวณขนาดโลโก้ (มี fallback ถ้าจอยังไม่พร้อม)
+    -- คำนวณขนาดโลโก้
     local function getLogoSize()
         local vp = camera.ViewportSize
         local base = math.min(vp.X, vp.Y)
-        -- 🔧 แก้จุดที่ 1: ถ้าจอเป็น 0 ให้ใช้ค่า default
-        if base == 0 then
-            base = 800
-        end
+        if base == 0 then base = 800 end
         local size = base * 0.35
         return UDim2.new(0, size, 0, size)
     end
@@ -55,23 +85,25 @@ local function ShowSplash()
     logoHolder.ZIndex = 2
     logoHolder.Parent = splashGui
 
+    -- โหลด asset ก่อนสร้าง ImageLabel
+    local logoAsset = GetLogoAsset()
+
     local logo = Instance.new("ImageLabel")
     logo.Size = UDim2.new(1, 0, 1, 0)
     logo.BackgroundTransparency = 1
-    logo.Image = LOGO_ID
-    logo.ImageTransparency = 1  -- เริ่มจากจาง รอให้โหลดเสร็จค่อยแสดง
+    logo.Image = logoAsset
+    logo.ImageTransparency = 1  -- เริ่มจากจาง รอให้พร้อมค่อยแสดง
     logo.ScaleType = Enum.ScaleType.Fit
     logo.ZIndex = 2
     logo.Parent = logoHolder
 
-    -- 🔧 แก้จุดที่ 2: รอให้รูปโหลดก่อน แล้วค่อยเริ่มอนิเมชัน
-    local preloadSuccess = pcall(function()
-        ContentProvider:PreloadAsync({logo})
-    end)
-
-    -- ถ้าโหลดไม่สำเร็จ รออีกนิดให้จอพร้อม
-    if not preloadSuccess or camera.ViewportSize.X == 0 then
-        task.wait(0.5)
+    -- รอให้รูปโหลด (สูงสุด 3 วินาที)
+    local startTime = tick()
+    while tick() - startTime < 3 do
+        if logo.IsLoaded then
+            break
+        end
+        task.wait(0.1)
     end
 
     -- ปรับขนาดอัตโนมัติตอนหมุนจอ
@@ -84,7 +116,7 @@ local function ShowSplash()
 
     local targetSize = getLogoSize()
 
-    -- แสดงโลโก้ (fade in)
+    -- แสดงโลโก้
     logo.ImageTransparency = 0
 
     -- ขยายเข้ามา
@@ -122,7 +154,7 @@ local function ShowSplash()
     fadeBlur:Play()
     fadeLogo.Completed:Wait()
 
-    -- 🔧 แก้จุดที่ 3: เช็คก่อน disconnect ป้องกัน error
+    -- ทำความสะอาด
     if resizeConn then
         resizeConn:Disconnect()
     end
