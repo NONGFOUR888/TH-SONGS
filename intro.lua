@@ -35,7 +35,7 @@ local function ShowSplash()
         local vp = camera.ViewportSize
         local base = math.min(vp.X, vp.Y)
         if base == 0 then base = 800 end
-        local size = base * 0.35
+        local size = base * 0.6
         return UDim2.new(0, size, 0, size)
     end
 
