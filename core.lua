@@ -1,318 +1,342 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Core = {}
-local HUB_VERSION = "v1.5"
-local CONFIG_FILE = "C4Hub_Config.json"
+local HUB_VERSION = "V2.0"
+local CONFIG_FILE = "C4THHub_Config.json"
 
-local DEFAULT_CONFIG = {
-    Theme = "Violet",
-    AutoReconnect = false,
-    Language = "TH",
-    Transparency = 0,
+local SCRIPTS_MODULE_URL = "https://raw.githubusercontent.com/USERNAME/REPO/main/RVXHub_Scripts.lua"
+
+local CHANGELOG = {
+Version = "V2.0",
+Notes = {
+    "- เปิดตัว C4rDev Hub เวอร์ชั่นใหม่",
+    "- เพิ่มแท็บ Scripts สำหรับรันสคริปต์ภายนอก",
+    "- ปรับการเปลี่ยนภาษา/ความโปร่งใสให้บันทึกค่าแล้วแจ้งให้รันสคริปต์ใหม่",
+},
 }
 
-local CONFIG_VALIDATORS = {
-    Theme = function(v)
-        local valid = { Dark = true, Light = true, Emerald = true, Plant = true, Midnight = true, Violet = true, Rose = true, MonokaiPro = true }
-        return type(v) == "string" and valid[v] and v or nil
-    end,
-    AutoReconnect = function(v)
-        return type(v) == "boolean" and v or nil
-    end,
-    Language = function(v)
-        return (v == "TH" or v == "EN") and v or nil
-    end,
-    Transparency = function(v)
-        if type(v) ~= "number" then return nil end
-        if v < 0 then v = 0 end
-        if v > 80 then v = 80 end
-        return v
-    end,
+local GlobalStore = (type(getgenv) == "function" and getgenv()) or _G
+
+local function C4THHub_Cleanup()
+local prev = GlobalStore.__C4THHub_Instance
+if not prev then return end
+
+pcall(function()
+    if prev.InputConnection then
+        prev.InputConnection:Disconnect()
+    end
+end)
+
+pcall(function()
+    if prev.StatsConnection then
+        prev.StatsConnection:Disconnect()
+    end
+end)
+
+pcall(function()
+    if prev.StatsGui then
+        prev.StatsGui:Destroy()
+    end
+end)
+
+pcall(function()
+    if prev.Window then
+        prev.Window:Destroy()
+    end
+end)
+
+GlobalStore.__C4THHub_Instance = nil
+end
+
+C4THHub_Cleanup()
+GlobalStore.__C4THHub_Instance = {}
+
+local DEFAULT_CONFIG = {
+Theme = "Violet",
+AutoReconnect = false,
+Language = "TH",
+Transparent = true,
+QuickCloseKey = "K",
 }
 
 local LANG = {
-    TH = {
-        home = "หน้าแรก",
-        profileSection = "โปรไฟล์ผู้เล่น",
-        version = "เวอร์ชั่น ",
-        discord = "เข้าร่วม Discord",
-        discordCopied = "คัดลอกลิงก์แล้ว",
-        discordDesc = "วางในเบราว์เซอร์เพื่อเข้าร่วม Discord",
-        discordFallback = "คัดลอกอัตโนมัติไม่ได้ กรุณาพิมพ์ลิงก์เอง: ",
-        settings = "การตั้งค่า",
-        general = "การตั้งค่าทั่วไป",
-        generalDesc = "ปรับแต่งการทำงานของ Hub",
-        theme = "ธีม",
-        connection = "การเชื่อมต่อ",
-        connectionDesc = "จัดการการหลุดเซิร์ฟเวอร์",
-        autoreconnect = "Auto Reconnect",
-        autoreconnectDesc = "เข้าเกมใหม่อัตโนมัติถ้าหลุดเซิร์ฟเวอร์",
-        language = "ภาษา",
-        languageDesc = "มีผลกับหน้าแรกและการตั้งค่า (ต้องเข้าเกมใหม่ถึงจะเห็นผลเต็มที่)",
-        appearance = "รูปลักษณ์",
-        appearanceDesc = "ปรับความโปร่งใสของหน้าต่าง Hub",
-        transparency = "ความโปร่งใส",
-        stats = "แสดงสถิติ",
-        statsDesc = "โชว์กรอบ FPS/Ping มุมจอ",
-        showStats = "แสดง FPS/Ping",
-        configSection = "การตั้งค่าที่บันทึกไว้",
-        configDesc = "บันทึก/รีเซ็ตการตั้งค่าทั้งหมด",
-        saveConfig = "บันทึกการตั้งค่า",
-        savedMsg = "บันทึกการตั้งค่าแล้ว",
-        resetConfig = "รีเซ็ตการตั้งค่าทั้งหมด",
-        resetMsg = "รีเซ็ตเรียบร้อยแล้ว เข้าเกมใหม่เพื่อให้มีผลเต็มที่",
-        closehub = "ปิด Hub",
-        transparencyUnsupported = "WindUI เวอร์ชันนี้ยังไม่รองรับการปรับความโปร่งใส",
-    },
-    EN = {
-        home = "Home",
-        profileSection = "Player Profile",
-        version = "Version ",
-        discord = "Join Discord",
-        discordCopied = "Link copied",
-        discordDesc = "Paste it in your browser to join Discord",
-        discordFallback = "Couldn\'t copy automatically. Please copy this link manually: ",
-        settings = "Settings",
-        general = "General Settings",
-        generalDesc = "Customize how the Hub works",
-        theme = "Theme",
-        connection = "Connection",
-        connectionDesc = "Manage server disconnects",
-        autoreconnect = "Auto Reconnect",
-        autoreconnectDesc = "Auto rejoin if you get disconnected",
-        language = "Language",
-        languageDesc = "Affects Home and Settings tabs (rejoin for full effect)",
-        appearance = "Appearance",
-        appearanceDesc = "Adjust the Hub window transparency",
-        transparency = "Transparency",
-        stats = "Show Stats",
-        statsDesc = "Show an FPS/Ping overlay on screen",
-        showStats = "Show FPS/Ping",
-        configSection = "Saved Settings",
-        configDesc = "Save/reset all settings",
-        saveConfig = "Save Settings",
-        savedMsg = "Settings saved",
-        resetConfig = "Reset All Settings",
-        resetMsg = "Reset done. Rejoin for full effect.",
-        closehub = "Close Hub",
-        transparencyUnsupported = "This WindUI version does not support transparency yet",
-    },
+TH = {
+    home = "หน้าแรก",
+    profileSection = "โปรไฟล์ผู้เล่น",
+    version = "เวอร์ชั่น ",
+    discord = "แจ้งเตือน",
+    discordCopied = "คัดลอกลิงก์แล้ว",
+    discordDesc = "วางในเบราว์เซอร์เพื่อเข้าร่วม Discord",
+    settings = "การตั้งค่า",
+    general = "การตั้งค่าทั่วไป",
+    generalDesc = "ปรับแต่งการทำงานของ Hub",
+    theme = "ธีม",
+    connection = "การเชื่อมต่อ",
+    connectionDesc = "จัดการการหลุดเซิร์ฟเวอร์",
+    autoreconnect = "Auto Reconnect",
+    autoreconnectDesc = "เข้าเกมใหม่อัตโนมัติถ้าหลุดเซิร์ฟเวอร์",
+    language = "ภาษา",
+    languageDesc = "มีผลกับหน้าแรกและการตั้งค่าหลังรันสคริปต์ใหม่",
+    appearance = "รูปลักษณ์",
+    appearanceDesc = "ปรับความโปร่งใสของหน้าต่าง Hub (มีผลหลังรันสคริปต์ใหม่)",
+    transparency = "หน้าต่างโปร่งใส",
+    transparencySaved = "บันทึกแล้ว รันสคริปต์ใหม่เพื่อให้มีผล",
+    languageSaved = "บันทึกภาษาแล้ว รันสคริปต์ใหม่เพื่อให้มีผล",
+    keybindSection = "ปุ่มลัด",
+    keybindDesc = "เลือกปุ่มสำหรับปิด Hub อย่างเร็ว",
+    quickCloseKey = "ปุ่มปิดด่วน",
+    stats = "แสดงสถิติ",
+    statsDesc = "โชว์กรอบ FPS/Ping มุมจอ",
+    showStats = "แสดง FPS/Ping",
+    configSection = "การตั้งค่าที่บันทึกไว้",
+    configDesc = "บันทึก/รีเซ็ตการตั้งค่าทั้งหมด",
+    saveConfig = "บันทึกการตั้งค่า",
+    savedMsg = "บันทึกการตั้งค่าแล้ว",
+    resetConfig = "รีเซ็ตการตั้งค่าทั้งหมด",
+    resetMsg = "รีเซ็ตเรียบร้อยแล้ว เข้าเกมใหม่เพื่อให้มีผลเต็มที่",
+    closehub = "ปิด Hub",
+    transparencyUnsupported = "WindUI เวอร์ชันนี้ยังไม่รองรับการปรับความโปร่งใส",
+    scripts = "สคริปต์",
+    scriptsSection = "สคริปต์ภายนอก",
+    scriptsSectionDesc = "กดปุ่มเพื่อรันสคริปต์แต่ละตัว",
+    scriptsEmptyTitle = "ยังไม่มีสคริปต์",
+    scriptsEmptyDesc = "เพิ่มรายการได้ในไฟล์ RVXHub_Scripts.lua",
+    scriptsLoadFailTitle = "โหลดแท็บ Scripts ไม่สำเร็จ",
+    scriptsLoadFailDesc = "ตรวจสอบ SCRIPTS_MODULE_URL หรือการเชื่อมต่ออินเทอร์เน็ต",
+    scriptRan = "รันสคริปต์แล้ว",
+    scriptError = "รันไม่สำเร็จ: ",
+    changelogSection = "ประกาศอัปเดต",
+    changelogSectionDesc = "สิ่งที่เปลี่ยนแปลงล่าสุดใน Hub",
+    changelogTitlePrefix = "อัปเดตเวอร์ชัน ",
+},
+EN = {
+    home = "Home",
+    profileSection = "Player Profile",
+    version = "Version ",
+    discord = "Notify",
+    discordCopied = "Link copied",
+    discordDesc = "Paste it in your browser to join Discord",
+    settings = "Settings",
+    general = "General Settings",
+    generalDesc = "Customize how the Hub works",
+    theme = "Theme",
+    connection = "Connection",
+    connectionDesc = "Manage server disconnects",
+    autoreconnect = "Auto Reconnect",
+    autoreconnectDesc = "Auto rejoin if you get disconnected",
+    language = "Language",
+    languageDesc = "Affects Home and Settings tabs after you rerun the script",
+    appearance = "Appearance",
+    appearanceDesc = "Adjust the Hub window transparency (applies after you rerun the script)",
+    transparency = "Transparent window",
+    transparencySaved = "Saved. Rerun the script for it to take effect.",
+    languageSaved = "Language saved. Rerun the script for it to take effect.",
+    keybindSection = "Keybind",
+    keybindDesc = "Choose a key to quickly close the Hub",
+    quickCloseKey = "Quick close key",
+    stats = "Show Stats",
+    statsDesc = "Show an FPS/Ping overlay on screen",
+    showStats = "Show FPS/Ping",
+    configSection = "Saved Settings",
+    configDesc = "Save/reset all settings",
+    saveConfig = "Save Settings",
+    savedMsg = "Settings saved",
+    resetConfig = "Reset All Settings",
+    resetMsg = "Reset done. Rejoin for full effect.",
+    closehub = "Close Hub",
+    transparencyUnsupported = "This WindUI version does not support transparency yet",
+    scripts = "Scripts",
+    scriptsSection = "External Scripts",
+    scriptsSectionDesc = "Tap a button to run that script",
+    scriptsEmptyTitle = "No scripts yet",
+    scriptsEmptyDesc = "Add entries in RVXHub_Scripts.lua",
+    scriptsLoadFailTitle = "Failed to load Scripts tab",
+    scriptsLoadFailDesc = "Check SCRIPTS_MODULE_URL or your internet connection",
+    scriptRan = "Script executed",
+    scriptError = "Failed to run: ",
+    changelogSection = "What's New",
+    changelogSectionDesc = "Latest changes in this Hub",
+    changelogTitlePrefix = "Version ",
+},
 }
 
 local function LoadConfig()
-    local cfg = {}
-    for k, v in pairs(DEFAULT_CONFIG) do
-        cfg[k] = v
-    end
-    local needsResave = false
-    if isfile and isfile(CONFIG_FILE) then
-        local ok, data = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(readfile(CONFIG_FILE))
-        end)
-        if ok and type(data) == "table" then
-            for k, validate in pairs(CONFIG_VALIDATORS) do
-                local raw = data[k]
-                if raw == nil then
-                    needsResave = true
-                else
-                    local clean = validate(raw)
-                    if clean == nil then
-                        needsResave = true
-                    else
-                        cfg[k] = clean
-                    end
-                end
-            end
-        else
-            needsResave = true
+local cfg = {}
+for k, v in pairs(DEFAULT_CONFIG) do
+    cfg[k] = v
+end
+
+if isfile and isfile(CONFIG_FILE) then
+    local ok, data = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(readfile(CONFIG_FILE))
+    end)
+    if ok and data then
+        for k, v in pairs(data) do
+            cfg[k] = v
         end
     end
-    return cfg, needsResave
+end
+
+return cfg
 end
 
 local function SaveConfigToFile(cfg)
-    if writefile then
-        pcall(function()
-            writefile(CONFIG_FILE, game:GetService("HttpService"):JSONEncode(cfg))
-        end)
-    end
-end
-
-do
-    local cfg, needsResave = LoadConfig()
-    Core.Config = cfg
-    if needsResave then
-        SaveConfigToFile(Core.Config)
-    end
-end
-
-local TITLE_TEXT_GRADIENT = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromHex("#B39CFF")),
-    ColorSequenceKeypoint.new(0.5, Color3.fromHex("#8A5CFF")),
-    ColorSequenceKeypoint.new(1, Color3.fromHex("#FFFFFF")),
-})
-
-local function TryGetWindowBackground()
-    local ok, bg = pcall(function()
-        return WindUI:Gradient({
-            ["0"] = { Color = Color3.fromHex("#150826"), Transparency = 0 },
-            ["100"] = { Color = Color3.fromHex("#C9B8FF"), Transparency = 0.75 },
-        }, {
-            Rotation = 90,
-        })
-    end)
-    if ok then
-        return bg
-    end
-    return nil
-end
-
-local function TryStyleTitleText(titleString)
-    task.spawn(function()
-        task.wait(0.5)
-        pcall(function()
-            local Players = game:GetService("Players")
-            local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-            for _, gui in ipairs(playerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") then
-                    for _, obj in ipairs(gui:GetDescendants()) do
-                        if obj:IsA("TextLabel") and obj.Text == titleString then
-                            local gradient = obj:FindFirstChildOfClass("UIGradient")
-                            if not gradient then
-                                gradient = Instance.new("UIGradient")
-                                gradient.Parent = obj
-                            end
-                            gradient.Color = TITLE_TEXT_GRADIENT
-                            obj.TextColor3 = Color3.fromHex("#FFFFFF")
-                        end
-                    end
-                end
-            end
-        end)
+if writefile then
+    pcall(function()
+        writefile(CONFIG_FILE, game:GetService("HttpService"):JSONEncode(cfg))
     end)
 end
+end
+
+Core.Config = LoadConfig()
+Core.MapName = nil
 
 function Core.Init(mapName)
-    local T = LANG[Core.Config.Language] or LANG.TH
-    local windowTitle = "C4rDev Hub X " .. mapName
-    local windowOptions = {
-        Title = windowTitle,
-        Icon = "rbxthumb://type=Asset&id=81755635423577&w=420&h=420",
-        Theme = Core.Config.Theme,
-    }
-    local bg = TryGetWindowBackground()
-    if bg then
-        windowOptions.Background = bg
-    end
-    local Window = WindUI:CreateWindow(windowOptions)
-    TryStyleTitleText(windowTitle)
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
-    local HomeTab = Window:Tab({ Title = T.home, Icon = "house" })
-    local ProfileSection = HomeTab:Section({ Title = T.profileSection, Desc = mapName })
-    local content = Players:GetUserThumbnailAsync(
+Core.MapName = mapName
+local T = LANG[Core.Config.Language] or LANG.TH
+
+local Window = WindUI:CreateWindow({
+    Title = "C4rDev hub X " .. mapName,
+    Icon = "rbxthumb://type=Asset&id=81755635423577&w=420&h=420",
+    IconSize = 35,
+    Theme = Core.Config.Theme,
+    Transparent = Core.Config.Transparent,
+    OpenButton = {
+        Title = "C4rDev Hub",
+        CornerRadius = UDim.new(0, 12),
+        Color = ColorSequence.new(
+            Color3.fromHex("#6D28D9"),
+            Color3.fromHex("#3B82F6")
+        ),
+    },
+})
+
+GlobalStore.__C4THHub_Instance = GlobalStore.__C4THHub_Instance or {}
+GlobalStore.__C4THHub_Instance.Window = Window
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local HomeTab = Window:Tab({ Title = T.home, Icon = "house" })
+
+HomeTab:Section({ Title = T.profileSection, Desc = mapName })
+
+local thumbOk, thumbContent = pcall(function()
+    return Players:GetUserThumbnailAsync(
         LocalPlayer.UserId,
         Enum.ThumbnailType.HeadShot,
         Enum.ThumbnailSize.Size420x420
     )
-    ProfileSection:Image({
-        Image = content,
-        AspectRatio = "1:1",
-        Radius = 12,
-    })
-    ProfileSection:Space()
-    HomeTab:Paragraph({
-        Title = LocalPlayer.DisplayName,
-        Desc = "@" .. LocalPlayer.Name .. "  |  UserId: " .. LocalPlayer.UserId,
-    })
-    HomeTab:Button({
-        Title = T.version .. HUB_VERSION,
-        Icon = "star",
-        Callback = function()
-            WindUI:Notify({
-                Title = "C4rDev Hub",
-                Content = T.version .. HUB_VERSION,
-                Duration = 3,
-            })
-        end,
-    })
-    HomeTab:Button({
-        Title = T.discord,
-        Icon = "message-circle",
-        Callback = function()
-            local discordLink = "https://discord.gg/x5JFy9xzdb"
-            local copied = false
-            if setclipboard then
-                local ok = pcall(setclipboard, discordLink)
-                copied = ok
-            end
-            if copied then
-                WindUI:Notify({
-                    Title = T.discordCopied,
-                    Content = T.discordDesc,
-                    Duration = 3,
-                })
-            else
-                WindUI:Notify({
-                    Title = T.discord,
-                    Content = T.discordFallback .. discordLink,
-                    Duration = 6,
-                })
-            end
-        end,
-    })
+end)
 
-    -- Toggle UI with P key
-    local UserInputService = game:GetService("UserInputService")
-    local toggleConn
-    toggleConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            if input.KeyCode == Enum.KeyCode.P then
+HomeTab:Paragraph({
+    Title = LocalPlayer.DisplayName,
+    Desc = "@" .. LocalPlayer.Name .. "  |  UserId: " .. LocalPlayer.UserId,
+    Thumbnail = thumbOk and thumbContent or "rbxassetid://0",
+    ThumbnailSize = 60,
+})
+
+HomeTab:Button({
+    Title = T.version .. HUB_VERSION,
+    Icon = "star",
+    Callback = function()
+        WindUI:Notify({
+            Title = "C4rDev Hub",
+            Content = T.version .. HUB_VERSION,
+            Duration = 3,
+        })
+    end,
+})
+
+HomeTab:Section({ Title = T.changelogSection, Desc = T.changelogSectionDesc })
+
+HomeTab:Paragraph({
+    Title = T.changelogTitlePrefix .. CHANGELOG.Version,
+    Desc = table.concat(CHANGELOG.Notes, "\n"),
+})
+
+HomeTab:Button({
+    Title = T.discord,
+    Icon = "message-circle",
+    Callback = function()
+        if setclipboard then
+            setclipboard("ขอบคุณที่เลือกใช้ C4rDev HUB")
+        end
+        WindUI:Notify({
+            Title = T.discordCopied,
+            Content = T.discordDesc,
+            Duration = 3,
+        })
+    end,
+})
+
+local UserInputService = game:GetService("UserInputService")
+local inputConnection
+inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.Keyboard then
+        local keyEnum = Enum.KeyCode[Core.Config.QuickCloseKey]
+        if keyEnum and input.KeyCode == keyEnum then
+            local toggled = false
+            pcall(function()
+                Window:Toggle()
+                toggled = true
+            end)
+            if not toggled then
                 pcall(function()
                     if Window.Visible then
-                        Window:Hide()
+                        Window:Close()
                     else
-                        Window:Show()
+                        Window:Open()
                     end
                 end)
             end
         end
-    end)
-    Core._toggleConn = toggleConn
+    end
+end)
 
-    return Window, WindUI
+GlobalStore.__C4THHub_Instance.InputConnection = inputConnection
+
+return Window, WindUI
 end
 
 function Core.Settings(Window, WindUI)
-    local T = LANG[Core.Config.Language] or LANG.TH
-    local Players = game:GetService("Players")
-    local SettingsTab = Window:Tab({ Title = T.settings, Icon = "settings" })
-    SettingsTab:Section({ Title = T.general, Desc = T.generalDesc })
-    SettingsTab:Dropdown({
-        Title = T.theme,
-        Values = { "Dark", "Light", "Emerald", "Plant", "Midnight", "Violet", "Rose", "MonokaiPro" },
-        Value = Core.Config.Theme,
-        Callback = function(selected)
-            Core.Config.Theme = selected
-            WindUI:SetTheme(selected)
-        end,
-    })
-    SettingsTab:Section({ Title = T.connection, Desc = T.connectionDesc })
-    local TeleportService = game:GetService("TeleportService")
-    SettingsTab:Toggle({
-        Title = T.autoreconnect,
-        Desc = T.autoreconnectDesc,
-        Value = Core.Config.AutoReconnect,
-        Callback = function(state)
-            Core.Config.AutoReconnect = state
-            WindUI:Notify({
-                Title = T.settings,
-                Content = T.autoreconnect .. ": " .. (state and "ON" or "OFF"),
-                Duration = 2,
-            })
-        end,
-    })
+local T = LANG[Core.Config.Language] or LANG.TH
+local Players = game:GetService("Players")
+
+local SettingsTab = Window:Tab({ Title = T.settings, Icon = "settings" })
+
+SettingsTab:Section({ Title = T.general, Desc = T.generalDesc })
+
+SettingsTab:Dropdown({
+    Title = T.theme,
+    Values = { "Dark", "Light", "Emerald", "Plant", "Midnight", "Violet", "Rose", "MonokaiPro" },
+    Value = Core.Config.Theme,
+    Callback = function(selected)
+        Core.Config.Theme = selected
+        WindUI:SetTheme(selected)
+    end,
+})
+
+SettingsTab:Section({ Title = T.connection, Desc = T.connectionDesc })
+
+local TeleportService = game:GetService("TeleportService")
+
+SettingsTab:Toggle({
+    Title = T.autoreconnect,
+    Desc = T.autoreconnectDesc,
+    Value = Core.Config.AutoReconnect,
+    Callback = function(state)
+        Core.Config.AutoReconnect = state
+        WindUI:Notify({
+            Title = T.settings,
+            Content = T.autoreconnect .. ": " .. (state and "ON" or "OFF"),
+            Duration = 2,
+        })
+    end,
+})
+
+pcall(function()
     game:BindToClose(function()
         if Core.Config.AutoReconnect then
             pcall(function()
@@ -320,151 +344,206 @@ function Core.Settings(Window, WindUI)
             end)
         end
     end)
-    SettingsTab:Section({ Title = T.language, Desc = T.languageDesc })
-    SettingsTab:Dropdown({
-        Title = T.language,
-        Values = { "TH", "EN" },
-        Value = Core.Config.Language,
-        Callback = function(selected)
-            Core.Config.Language = selected
-        end,
-    })
-    SettingsTab:Section({ Title = T.appearance, Desc = T.appearanceDesc })
-    SettingsTab:Slider({
-        Title = T.transparency,
-        Value = { Min = 0, Max = 80, Default = Core.Config.Transparency },
-        Callback = function(value)
-            Core.Config.Transparency = value
-            local applied = false
+end)
+
+SettingsTab:Section({ Title = T.language, Desc = T.languageDesc })
+
+SettingsTab:Dropdown({
+    Title = T.language,
+    Values = { "TH", "EN" },
+    Value = Core.Config.Language,
+    Callback = function(selected)
+        if selected == Core.Config.Language then return end
+        Core.Config.Language = selected
+        SaveConfigToFile(Core.Config)
+        WindUI:Notify({ Title = T.settings, Content = T.languageSaved, Duration = 4 })
+    end,
+})
+
+SettingsTab:Section({ Title = T.appearance, Desc = T.appearanceDesc })
+
+SettingsTab:Toggle({
+    Title = T.transparency,
+    Value = Core.Config.Transparent,
+    Callback = function(state)
+        Core.Config.Transparent = state
+        SaveConfigToFile(Core.Config)
+        WindUI:Notify({ Title = T.settings, Content = T.transparencySaved, Duration = 4 })
+    end,
+})
+
+SettingsTab:Section({ Title = T.keybindSection, Desc = T.keybindDesc })
+
+SettingsTab:Dropdown({
+    Title = T.quickCloseKey,
+    Values = { "K", "L", "J", "Insert", "End", "RightShift", "F4" },
+    Value = Core.Config.QuickCloseKey,
+    Callback = function(selected)
+        Core.Config.QuickCloseKey = selected
+    end,
+})
+
+SettingsTab:Section({ Title = T.stats, Desc = T.statsDesc })
+
+local StatsGui = nil
+local StatsConnection = nil
+
+local function CreateStatsOverlay()
+    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+    StatsGui = Instance.new("ScreenGui")
+    StatsGui.Name = "C4THStatsOverlay"
+    StatsGui.ResetOnSpawn = false
+    StatsGui.Parent = playerGui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 110, 0, 50)
+    frame.Position = UDim2.new(0, 10, 0, 10)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 5, 25)
+    frame.BackgroundTransparency = 0.3
+    frame.Parent = StatsGui
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+    local fpsLabel = Instance.new("TextLabel")
+    fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    fpsLabel.BackgroundTransparency = 1
+    fpsLabel.Text = "FPS: --"
+    fpsLabel.TextColor3 = Color3.new(1, 1, 1)
+    fpsLabel.Font = Enum.Font.GothamBold
+    fpsLabel.TextSize = 14
+    fpsLabel.Parent = frame
+
+    local pingLabel = Instance.new("TextLabel")
+    pingLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    pingLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    pingLabel.BackgroundTransparency = 1
+    pingLabel.Text = "Ping: --"
+    pingLabel.TextColor3 = Color3.new(1, 1, 1)
+    pingLabel.Font = Enum.Font.GothamBold
+    pingLabel.TextSize = 14
+    pingLabel.Parent = frame
+
+    local RunService = game:GetService("RunService")
+    local frameCount = 0
+    local lastTime = tick()
+
+    StatsConnection = RunService.Heartbeat:Connect(function()
+        frameCount = frameCount + 1
+        local now = tick()
+        if now - lastTime >= 1 then
+            fpsLabel.Text = "FPS: " .. frameCount
+            frameCount = 0
+            lastTime = now
+
             pcall(function()
-                Window:SetTransparency(value / 100)
-                applied = true
+                local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+                pingLabel.Text = "Ping: " .. math.floor(ping) .. " ms"
             end)
-            if not applied then
-                pcall(function()
-                    Window.Transparency = value / 100
-                    applied = true
-                end)
-            end
-            if not applied then
-                WindUI:Notify({
-                    Title = T.appearance,
-                    Content = T.transparencyUnsupported,
-                    Duration = 3,
-                })
-            end
-        end,
-    })
-    SettingsTab:Section({ Title = T.stats, Desc = T.statsDesc })
-    local StatsGui = nil
-    local StatsConnection = nil
-    local function CreateStatsOverlay()
-        local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-        local existing = playerGui:FindFirstChild("C4THStatsOverlay")
-        if existing then
-            existing:Destroy()
         end
-        StatsGui = Instance.new("ScreenGui")
-        StatsGui.Name = "C4THStatsOverlay"
-        StatsGui.ResetOnSpawn = false
-        StatsGui.Parent = playerGui
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 110, 0, 50)
-        frame.Position = UDim2.new(0, 10, 0, 10)
-        frame.BackgroundColor3 = Color3.fromRGB(15, 5, 25)
-        frame.BackgroundTransparency = 0.3
-        frame.Parent = StatsGui
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
-        local fpsLabel = Instance.new("TextLabel")
-        fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
-        fpsLabel.BackgroundTransparency = 1
-        fpsLabel.Text = "FPS: --"
-        fpsLabel.TextColor3 = Color3.new(1, 1, 1)
-        fpsLabel.Font = Enum.Font.GothamBold
-        fpsLabel.TextSize = 14
-        fpsLabel.Parent = frame
-        local pingLabel = Instance.new("TextLabel")
-        pingLabel.Size = UDim2.new(1, 0, 0.5, 0)
-        pingLabel.Position = UDim2.new(0, 0, 0.5, 0)
-        pingLabel.BackgroundTransparency = 1
-        pingLabel.Text = "Ping: --"
-        pingLabel.TextColor3 = Color3.new(1, 1, 1)
-        pingLabel.Font = Enum.Font.GothamBold
-        pingLabel.TextSize = 14
-        pingLabel.Parent = frame
-        local RunService = game:GetService("RunService")
-        local frameCount = 0
-        local lastTime = tick()
-        StatsConnection = RunService.Heartbeat:Connect(function()
-            frameCount = frameCount + 1
-            local now = tick()
-            if now - lastTime >= 1 then
-                fpsLabel.Text = "FPS: " .. frameCount
-                frameCount = 0
-                lastTime = now
-                pcall(function()
-                    local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
-                    pingLabel.Text = "Ping: " .. math.floor(ping) .. " ms"
-                end)
-            end
-        end)
+    end)
+
+    GlobalStore.__C4THHub_Instance = GlobalStore.__C4THHub_Instance or {}
+    GlobalStore.__C4THHub_Instance.StatsGui = StatsGui
+    GlobalStore.__C4THHub_Instance.StatsConnection = StatsConnection
+end
+
+local function DestroyStatsOverlay()
+    if StatsConnection then
+        StatsConnection:Disconnect()
+        StatsConnection = nil
     end
-    local function DestroyStatsOverlay()
-        if StatsConnection then
-            StatsConnection:Disconnect()
-            StatsConnection = nil
-        end
-        if StatsGui then
-            StatsGui:Destroy()
-            StatsGui = nil
-        end
+    if StatsGui then
+        StatsGui:Destroy()
+        StatsGui = nil
     end
-    SettingsTab:Toggle({
-        Title = T.showStats,
-        Value = false,
-        Callback = function(state)
-            if state then
-                CreateStatsOverlay()
-            else
-                DestroyStatsOverlay()
-            end
-        end,
-    })
-    SettingsTab:Section({ Title = T.configSection, Desc = T.configDesc })
-    SettingsTab:Button({
-        Title = T.saveConfig,
-        Icon = "save",
-        Callback = function()
-            SaveConfigToFile(Core.Config)
-            WindUI:Notify({ Title = T.settings, Content = T.savedMsg, Duration = 2 })
-        end,
-    })
-    SettingsTab:Button({
-        Title = T.resetConfig,
-        Icon = "rotate-ccw",
-        Callback = function()
-            local fresh = {}
-            for k, v in pairs(DEFAULT_CONFIG) do
-                fresh[k] = v
-            end
-            Core.Config = fresh
-            SaveConfigToFile(Core.Config)
-            WindUI:SetTheme(Core.Config.Theme)
-            WindUI:Notify({ Title = T.settings, Content = T.resetMsg, Duration = 4 })
-        end,
-    })
-    SettingsTab:Button({
-        Title = T.closehub,
-        Icon = "x",
-        Callback = function()
+    if GlobalStore.__C4THHub_Instance then
+        GlobalStore.__C4THHub_Instance.StatsGui = nil
+        GlobalStore.__C4THHub_Instance.StatsConnection = nil
+    end
+end
+
+SettingsTab:Toggle({
+    Title = T.showStats,
+    Value = false,
+    Callback = function(state)
+        if state then
+            CreateStatsOverlay()
+        else
             DestroyStatsOverlay()
-            if Core._toggleConn then
-                Core._toggleConn:Disconnect()
-                Core._toggleConn = nil
-            end
-            Window:Destroy()
-        end,
+        end
+    end,
+})
+
+SettingsTab:Section({ Title = T.configSection, Desc = T.configDesc })
+
+SettingsTab:Button({
+    Title = T.saveConfig,
+    Icon = "save",
+    Callback = function()
+        SaveConfigToFile(Core.Config)
+        WindUI:Notify({ Title = T.settings, Content = T.savedMsg, Duration = 2 })
+    end,
+})
+
+SettingsTab:Button({
+    Title = T.resetConfig,
+    Icon = "rotate-ccw",
+    Callback = function()
+        local fresh = {}
+        for k, v in pairs(DEFAULT_CONFIG) do
+            fresh[k] = v
+        end
+        Core.Config = fresh
+        SaveConfigToFile(Core.Config)
+        WindUI:SetTheme(Core.Config.Theme)
+        WindUI:Notify({ Title = T.settings, Content = T.resetMsg, Duration = 4 })
+    end,
+})
+
+SettingsTab:Button({
+    Title = T.closehub,
+    Icon = "x",
+    Callback = function()
+        DestroyStatsOverlay()
+        RVXHub_Cleanup()
+    end,
+})
+end
+
+function Core.Scripts(Window, WindUI)
+local T = LANG[Core.Config.Language] or LANG.TH
+
+local loadOk, ScriptsModuleOrErr = pcall(function()
+    local chunk = game:HttpGet(SCRIPTS_MODULE_URL)
+    local fn, err = loadstring(chunk)
+    if not fn then
+        error(err or "loadstring failed")
+    end
+    return fn()
+end)
+
+if not loadOk or type(ScriptsModuleOrErr) ~= "table" or type(ScriptsModuleOrErr.Init) ~= "function" then
+    warn("[C4rDev Hub] Failed to load Scripts module: " .. tostring(ScriptsModuleOrErr))
+    WindUI:Notify({
+        Title = T.scriptsLoadFailTitle,
+        Content = T.scriptsLoadFailDesc,
+        Duration = 5,
     })
+    return
+end
+
+local initOk, initErr = pcall(function()
+    ScriptsModuleOrErr.Init(Window, WindUI, T)
+end)
+
+if not initOk then
+    warn("[C4rDev Hub] Scripts module Init error: " .. tostring(initErr))
+    WindUI:Notify({
+        Title = T.scriptsLoadFailTitle,
+        Content = tostring(initErr),
+        Duration = 5,
+    })
+end
 end
 
 return Core
